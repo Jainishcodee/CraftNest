@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -129,7 +128,7 @@ const RecentOrders = () => {
   };
   
   // Function to get next status
-  const getNextStatus = (currentStatus: string) => {
+  const getNextStatus = (currentStatus: string): 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled' => {
     switch (currentStatus) {
       case 'pending':
         return 'processing';
@@ -138,7 +137,7 @@ const RecentOrders = () => {
       case 'shipped':
         return 'delivered';
       default:
-        return currentStatus;
+        return currentStatus as 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
     }
   };
   
