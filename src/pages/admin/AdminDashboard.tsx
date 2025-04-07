@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,15 +7,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { ShoppingBag, Users, DollarSign, Package, CheckCheck, BarChart } from 'lucide-react';
+import { ShoppingBag, Users, DollarSign, Package, CheckCheck, BarChart, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 
 // Dashboard stats component
 const DashboardStats = () => {
   const { products, orders } = useData();
   
-  // Calculate dashboard stats
   const totalProducts = products.length;
   const approvedProducts = products.filter(p => p.approved).length;
   const pendingProducts = totalProducts - approvedProducts;
@@ -90,10 +91,8 @@ const PendingApprovals = () => {
   const { addNotification } = useNotifications();
   const [isApproving, setIsApproving] = useState<Record<string, boolean>>({});
   
-  // Filter pending products
   const pendingProducts = products.filter(p => !p.approved);
   
-  // Handle product approval
   const handleApprove = async (productId: string) => {
     setIsApproving(prev => ({ ...prev, [productId]: true }));
     
@@ -102,7 +101,6 @@ const PendingApprovals = () => {
       
       const product = products.find(p => p.id === productId);
       if (product) {
-        // Notify vendor
         addNotification({
           title: 'Product Approved',
           message: `Your product "${product.name}" has been approved and is now live on the marketplace.`,
@@ -179,12 +177,10 @@ const PendingApprovals = () => {
 const RecentOrders = () => {
   const { orders } = useData();
   
-  // Get recent orders, sorted by date
   const recentOrders = [...orders]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .slice(0, 5);
   
-  // Function to get badge variant based on order status
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case 'delivered':
@@ -243,10 +239,332 @@ const RecentOrders = () => {
   );
 };
 
+// Products Management Tab Component
+const ProductsManagement = () => {
+  const { products, approveProduct } = useData();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isApproving, setIsApproving] = useState<Record<string, boolean>>({});
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const itemsPerPage = 5;
+
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         product.vendorName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = filterCategory === 'all' || product.category === filterCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredProducts.slice(indexOfFirstItem, indexOfLastItem);
+
+  const handleApprove = async (productId: string) => {
+    setIsApproving(prev => ({ ...prev, [productId]: true }));
+    try {
+      await approveProduct(productId);
+      toast.success('Product approved successfully');
+    } catch (error) {
+      toast.error('Failed to approve product');
+    } finally {
+      setIsApproving(prev => ({ ...prev, [productId]: false }));
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Products Management</CardTitle>
+        <CardDescription>
+          Manage all products in the marketplace
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col sm:flex-row justify-between mb-4 gap-3">
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search products..."
+              className="pl-8"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <select 
+            className="px-3 py-2 border rounded-md text-sm"
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+          >
+            <option value="all">All Categories</option>
+            <option value="pottery">Pottery</option>
+            <option value="jewelry">Jewelry</option>
+            <option value="woodwork">Woodwork</option>
+            <option value="textiles">Textiles</option>
+            <option value="art">Art</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Product</TableHead>
+                <TableHead>Vendor</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Price</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {currentItems.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
+                    No products found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                currentItems.map(product => (
+                  <TableRow key={product.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 bg-muted rounded">
+                          <img
+                            src={product.images[0]}
+                            alt={product.name}
+                            className="h-full w-full object-cover rounded"
+                          />
+                        </div>
+                        <span className="font-medium">{product.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>{product.vendorName}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{product.category}</Badge>
+                    </TableCell>
+                    <TableCell>${product.price.toFixed(2)}</TableCell>
+                    <TableCell>
+                      <Badge variant={product.approved ? "outline" : "default"}>
+                        {product.approved ? 'Approved' : 'Pending'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {!product.approved && (
+                        <Button 
+                          size="sm" 
+                          onClick={() => handleApprove(product.id)}
+                          disabled={isApproving[product.id]}
+                        >
+                          {isApproving[product.id] ? 'Approving...' : 'Approve'}
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        
+        {totalPages > 1 && (
+          <div className="mt-4">
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  />
+                </PaginationItem>
+                
+                {[...Array(totalPages)].map((_, i) => (
+                  <PaginationItem key={i}>
+                    <PaginationLink 
+                      isActive={currentPage === i + 1}
+                      onClick={() => setCurrentPage(i + 1)}
+                    >
+                      {i + 1}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+                
+                <PaginationItem>
+                  <PaginationNext 
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+// Orders Management Tab Component
+const OrdersManagement = () => {
+  const { orders } = useData();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const itemsPerPage = 5;
+
+  const filteredOrders = orders.filter(order => {
+    const matchesSearch = order.id.includes(searchTerm) || 
+                         order.customerName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || order.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  const sortedOrders = [...filteredOrders].sort((a, b) => 
+    b.createdAt.getTime() - a.createdAt.getTime()
+  );
+
+  const totalPages = Math.ceil(sortedOrders.length / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = sortedOrders.slice(indexOfFirstItem, indexOfLastItem);
+
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case 'delivered':
+        return 'outline';
+      case 'shipped':
+        return 'secondary';
+      case 'processing':
+        return 'default';
+      case 'pending':
+        return 'destructive';
+      default:
+        return 'outline';
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Orders Management</CardTitle>
+        <CardDescription>
+          Manage and monitor all orders
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col sm:flex-row justify-between mb-4 gap-3">
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search order ID or customer..."
+              className="pl-8"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <select 
+            className="px-3 py-2 border rounded-md text-sm"
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+          >
+            <option value="all">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="processing">Processing</option>
+            <option value="shipped">Shipped</option>
+            <option value="delivered">Delivered</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+        
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Order ID</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead>Products</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {currentItems.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
+                    No orders found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                currentItems.map(order => (
+                  <TableRow key={order.id}>
+                    <TableCell>#{order.id.slice(-5)}</TableCell>
+                    <TableCell>{order.customerName}</TableCell>
+                    <TableCell>
+                      <div>
+                        {order.products.map((product, idx) => (
+                          <div key={idx} className="text-sm">
+                            {product.quantity}x {product.name}
+                            {idx < order.products.length - 1 && <span className="text-muted-foreground">, </span>}
+                          </div>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>${order.total.toFixed(2)}</TableCell>
+                    <TableCell>{order.createdAt.toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusBadgeVariant(order.status)}>
+                        {order.status}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        
+        {totalPages > 1 && (
+          <div className="mt-4">
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  />
+                </PaginationItem>
+                
+                {[...Array(totalPages)].map((_, i) => (
+                  <PaginationItem key={i}>
+                    <PaginationLink 
+                      isActive={currentPage === i + 1}
+                      onClick={() => setCurrentPage(i + 1)}
+                    >
+                      {i + 1}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+                
+                <PaginationItem>
+                  <PaginationNext 
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
 const AdminDashboard = () => {
   const { user, isAuthenticated } = useAuth();
   
-  // Redirect if user is not an admin
   if (!isAuthenticated || user?.role !== 'admin') {
     return <Navigate to="/login" />;
   }
@@ -271,35 +589,11 @@ const AdminDashboard = () => {
         </TabsContent>
         
         <TabsContent value="products">
-          <Card>
-            <CardHeader>
-              <CardTitle>Products Management</CardTitle>
-              <CardDescription>
-                Manage all products in the marketplace
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-center py-8 text-muted-foreground">
-                Product management functionality would go here
-              </p>
-            </CardContent>
-          </Card>
+          <ProductsManagement />
         </TabsContent>
         
         <TabsContent value="orders">
-          <Card>
-            <CardHeader>
-              <CardTitle>Orders Management</CardTitle>
-              <CardDescription>
-                Manage and monitor all orders
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-center py-8 text-muted-foreground">
-                Order management functionality would go here
-              </p>
-            </CardContent>
-          </Card>
+          <OrdersManagement />
         </TabsContent>
       </Tabs>
     </div>
