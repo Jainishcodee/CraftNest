@@ -1,599 +1,599 @@
-import React, { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useData } from '@/contexts/DataContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { ShoppingBag, Users, DollarSign, Package, CheckCheck, BarChart, Search } from 'lucide-react';
-import { toast } from 'sonner';
+import { useData, Product, Order, OrderStatus } from '@/contexts/DataContext';
 import { useNotifications } from '@/contexts/NotificationContext';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Navigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from 'sonner';
+import { ChevronLeft, ChevronRight, Search, Check, X, Eye, Clock, Package, Truck, CheckCircle2, RotateCcw } from 'lucide-react';
 
-// Dashboard stats component
-const DashboardStats = () => {
-  const { products, orders } = useData();
-  
-  const totalProducts = products.length;
-  const approvedProducts = products.filter(p => p.approved).length;
-  const pendingProducts = totalProducts - approvedProducts;
-  
-  const totalOrders = orders.length;
-  const completedOrders = orders.filter(o => o.status === 'delivered').length;
-  
-  const totalSales = orders.reduce((sum, order) => sum + order.total, 0);
-  const profit = totalSales * 0.1; // Assuming 10% commission
-  
-  return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
-          <DollarSign className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">${totalSales.toFixed(2)}</div>
-          <p className="text-xs text-muted-foreground">
-            +{(totalSales * 0.05).toFixed(2)} from last month
-          </p>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Commission Earned</CardTitle>
-          <BarChart className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">${profit.toFixed(2)}</div>
-          <p className="text-xs text-muted-foreground">
-            10% of total sales
-          </p>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-          <ShoppingBag className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{totalOrders}</div>
-          <p className="text-xs text-muted-foreground">
-            {completedOrders} completed, {totalOrders - completedOrders} in progress
-          </p>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Products</CardTitle>
-          <Package className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{totalProducts}</div>
-          <p className="text-xs text-muted-foreground">
-            {pendingProducts} pending approval
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
-
-// Pending approvals component
-const PendingApprovals = () => {
-  const { products, approveProduct } = useData();
+const AdminDashboard = () => {
+  const { user, isAuthenticated } = useAuth();
+  const { products, orders, approveProduct, updateOrderStatus } = useData();
   const { addNotification } = useNotifications();
-  const [isApproving, setIsApproving] = useState<Record<string, boolean>>({});
   
-  const pendingProducts = products.filter(p => !p.approved);
+  // Redirect if not authenticated or not admin
+  if (!isAuthenticated || user?.role !== 'admin') {
+    return <Navigate to="/login?role=admin" />;
+  }
   
-  const handleApprove = async (productId: string) => {
-    setIsApproving(prev => ({ ...prev, [productId]: true }));
-    
+  // Active tab state
+  const [activeTab, setActiveTab] = useState('overview');
+  
+  // Overview states
+  const pendingApprovalCount = products.filter(p => !p.approved).length;
+  const pendingOrdersCount = orders.filter(o => o.status === 'pending').length;
+  
+  // Products tab states
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [productsFilter, setProductsFilter] = useState('all');
+  const [currentProductsPage, setCurrentProductsPage] = useState(1);
+  const productsPerPage = 5;
+  
+  // Filter products
+  const filteredProducts = products
+    .filter(product => {
+      if (productsFilter === 'all') return true;
+      if (productsFilter === 'approved') return product.approved;
+      if (productsFilter === 'pending') return !product.approved;
+      if (productsFilter === 'featured') return product.featured;
+      return true;
+    })
+    .filter(product =>
+      product.name.toLowerCase().includes(productSearchQuery.toLowerCase()) ||
+      product.description.toLowerCase().includes(productSearchQuery.toLowerCase()) ||
+      product.vendorName.toLowerCase().includes(productSearchQuery.toLowerCase())
+    );
+
+  // Calculate products pagination
+  const totalProductsPages = Math.ceil(filteredProducts.length / productsPerPage);
+  const indexOfLastProduct = currentProductsPage * productsPerPage;
+  const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
+  const currentProducts = filteredProducts.slice(indexOfFirstProduct, indexOfLastProduct);
+  
+  // Orders tab states
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [ordersFilter, setOrdersFilter] = useState('all');
+  const [currentOrdersPage, setCurrentOrdersPage] = useState(1);
+  const ordersPerPage = 5;
+  
+  // Filter orders
+  const filteredOrders = orders
+    .filter(order => {
+      if (ordersFilter === 'all') return true;
+      return order.status === ordersFilter;
+    })
+    .filter(order =>
+      order.id.toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
+      order.customerName.toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
+      order.vendorName.toLowerCase().includes(orderSearchQuery.toLowerCase())
+    );
+
+  // Calculate orders pagination
+  const totalOrdersPages = Math.ceil(filteredOrders.length / ordersPerPage);
+  const indexOfLastOrder = currentOrdersPage * ordersPerPage;
+  const indexOfFirstOrder = indexOfLastOrder - ordersPerPage;
+  const currentOrders = filteredOrders.slice(indexOfFirstOrder, indexOfLastOrder);
+  
+  // Handle product approval
+  const handleApproveProduct = async (productId: string) => {
     try {
       await approveProduct(productId);
       
+      // Find the product to get its details for the notification
       const product = products.find(p => p.id === productId);
+      
+      // Send notification to vendor
       if (product) {
         addNotification({
           title: 'Product Approved',
-          message: `Your product "${product.name}" has been approved and is now live on the marketplace.`,
+          message: `Your product "${product.name}" has been approved and is now live.`,
           type: 'success',
-          forRole: 'vendor',
+          forRole: 'vendor'
         });
         
-        toast.success('Product approved', {
-          description: `${product.name} is now live on the marketplace`,
+        toast.success('Product Approved', {
+          description: `"${product.name}" is now live on the marketplace.`
         });
       }
     } catch (error) {
       toast.error('Error', {
-        description: 'Failed to approve product. Please try again.',
+        description: 'Failed to approve product. Please try again.'
       });
-    } finally {
-      setIsApproving(prev => ({ ...prev, [productId]: false }));
     }
   };
-  
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Pending Approvals</CardTitle>
-        <CardDescription>
-          Review and approve new product submissions
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {pendingProducts.length === 0 ? (
-          <div className="text-center py-6">
-            <CheckCheck className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-            <p>No pending products to approve</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {pendingProducts.map(product => (
-              <div key={product.id} className="flex items-center justify-between border-b pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 bg-muted rounded">
-                    <img
-                      src={product.images[0]}
-                      alt={product.name}
-                      className="w-full h-full object-cover rounded"
-                    />
-                  </div>
-                  <div>
-                    <h3 className="font-medium">{product.name}</h3>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>By {product.vendorName}</span>
-                      <span>•</span>
-                      <Badge variant="outline">{product.category}</Badge>
-                      <span>•</span>
-                      <span>${product.price.toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-                <Button 
-                  onClick={() => handleApprove(product.id)}
-                  disabled={isApproving[product.id]}
-                >
-                  {isApproving[product.id] ? 'Approving...' : 'Approve'}
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
 
-// Recent orders component
-const RecentOrders = () => {
-  const { orders } = useData();
-  
-  const recentOrders = [...orders]
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    .slice(0, 5);
-  
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'delivered':
-        return 'outline';
-      case 'shipped':
-        return 'secondary';
-      case 'processing':
-        return 'default';
-      case 'pending':
-        return 'destructive';
-      default:
-        return 'outline';
-    }
-  };
-  
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Recent Orders</CardTitle>
-        <CardDescription>
-          Latest orders across the platform
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {recentOrders.length === 0 ? (
-          <div className="text-center py-6">
-            <ShoppingBag className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-            <p>No orders found</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {recentOrders.map(order => (
-              <div key={order.id} className="flex justify-between items-center border-b pb-3">
-                <div>
-                  <div className="font-medium">Order #{order.id.slice(-5)}</div>
-                  <div className="text-sm text-muted-foreground flex flex-col sm:flex-row sm:gap-2">
-                    <span>{order.customerName}</span>
-                    <span className="hidden sm:inline">•</span>
-                    <span>${order.total.toFixed(2)}</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <Badge variant={getStatusBadgeVariant(order.status)}>
-                    {order.status}
-                  </Badge>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {order.createdAt.toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
-
-// Products Management Tab Component
-const ProductsManagement = () => {
-  const { products, approveProduct } = useData();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [isApproving, setIsApproving] = useState<Record<string, boolean>>({});
-  const [filterCategory, setFilterCategory] = useState<string>('all');
-  const itemsPerPage = 5;
-
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.vendorName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = filterCategory === 'all' || product.category === filterCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredProducts.slice(indexOfFirstItem, indexOfLastItem);
-
-  const handleApprove = async (productId: string) => {
-    setIsApproving(prev => ({ ...prev, [productId]: true }));
+  // Handle order status update
+  const handleUpdateOrderStatus = async (orderId: string, status: OrderStatus) => {
     try {
-      await approveProduct(productId);
-      toast.success('Product approved successfully');
-    } catch (error) {
-      toast.error('Failed to approve product');
-    } finally {
-      setIsApproving(prev => ({ ...prev, [productId]: false }));
-    }
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Products Management</CardTitle>
-        <CardDescription>
-          Manage all products in the marketplace
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col sm:flex-row justify-between mb-4 gap-3">
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search products..."
-              className="pl-8"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <select 
-            className="px-3 py-2 border rounded-md text-sm"
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-          >
-            <option value="all">All Categories</option>
-            <option value="pottery">Pottery</option>
-            <option value="jewelry">Jewelry</option>
-            <option value="woodwork">Woodwork</option>
-            <option value="textiles">Textiles</option>
-            <option value="art">Art</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-        
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>Vendor</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Price</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {currentItems.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
-                    No products found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                currentItems.map(product => (
-                  <TableRow key={product.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 bg-muted rounded">
-                          <img
-                            src={product.images[0]}
-                            alt={product.name}
-                            className="h-full w-full object-cover rounded"
-                          />
-                        </div>
-                        <span className="font-medium">{product.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{product.vendorName}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{product.category}</Badge>
-                    </TableCell>
-                    <TableCell>${product.price.toFixed(2)}</TableCell>
-                    <TableCell>
-                      <Badge variant={product.approved ? "outline" : "default"}>
-                        {product.approved ? 'Approved' : 'Pending'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {!product.approved && (
-                        <Button 
-                          size="sm" 
-                          onClick={() => handleApprove(product.id)}
-                          disabled={isApproving[product.id]}
-                        >
-                          {isApproving[product.id] ? 'Approving...' : 'Approve'}
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        
-        {totalPages > 1 && (
-          <div className="mt-4">
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious 
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  />
-                </PaginationItem>
-                
-                {[...Array(totalPages)].map((_, i) => (
-                  <PaginationItem key={i}>
-                    <PaginationLink 
-                      isActive={currentPage === i + 1}
-                      onClick={() => setCurrentPage(i + 1)}
-                    >
-                      {i + 1}
-                    </PaginationLink>
-                  </PaginationItem>
-                ))}
-                
-                <PaginationItem>
-                  <PaginationNext 
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
-
-// Orders Management Tab Component
-const OrdersManagement = () => {
-  const { orders } = useData();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const itemsPerPage = 5;
-
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = order.id.includes(searchTerm) || 
-                         order.customerName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || order.status === filterStatus;
-    return matchesSearch && matchesStatus;
-  });
-
-  const sortedOrders = [...filteredOrders].sort((a, b) => 
-    b.createdAt.getTime() - a.createdAt.getTime()
-  );
-
-  const totalPages = Math.ceil(sortedOrders.length / itemsPerPage);
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = sortedOrders.slice(indexOfFirstItem, indexOfLastItem);
-
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'delivered':
-        return 'outline';
-      case 'shipped':
-        return 'secondary';
-      case 'processing':
-        return 'default';
-      case 'pending':
-        return 'destructive';
-      default:
-        return 'outline';
-    }
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Orders Management</CardTitle>
-        <CardDescription>
-          Manage and monitor all orders
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col sm:flex-row justify-between mb-4 gap-3">
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search order ID or customer..."
-              className="pl-8"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <select 
-            className="px-3 py-2 border rounded-md text-sm"
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-          >
-            <option value="all">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="processing">Processing</option>
-            <option value="shipped">Shipped</option>
-            <option value="delivered">Delivered</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-        </div>
-        
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Order ID</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Products</TableHead>
-                <TableHead>Total</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {currentItems.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
-                    No orders found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                currentItems.map(order => (
-                  <TableRow key={order.id}>
-                    <TableCell>#{order.id.slice(-5)}</TableCell>
-                    <TableCell>{order.customerName}</TableCell>
-                    <TableCell>
-                      <div>
-                        {order.products.map((product, idx) => (
-                          <div key={idx} className="text-sm">
-                            {product.quantity}x {product.name}
-                            {idx < order.products.length - 1 && <span className="text-muted-foreground">, </span>}
-                          </div>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell>${order.total.toFixed(2)}</TableCell>
-                    <TableCell>{order.createdAt.toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusBadgeVariant(order.status)}>
-                        {order.status}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        
-        {totalPages > 1 && (
-          <div className="mt-4">
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious 
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  />
-                </PaginationItem>
-                
-                {[...Array(totalPages)].map((_, i) => (
-                  <PaginationItem key={i}>
-                    <PaginationLink 
-                      isActive={currentPage === i + 1}
-                      onClick={() => setCurrentPage(i + 1)}
-                    >
-                      {i + 1}
-                    </PaginationLink>
-                  </PaginationItem>
-                ))}
-                
-                <PaginationItem>
-                  <PaginationNext 
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
-
-const AdminDashboard = () => {
-  const { user, isAuthenticated } = useAuth();
-  
-  if (!isAuthenticated || user?.role !== 'admin') {
-    return <Navigate to="/login" />;
-  }
-  
-  return (
-    <div className="craft-container py-8 md:py-12">
-      <h1 className="craft-heading mb-8">Admin Dashboard</h1>
+      await updateOrderStatus(orderId, status);
       
-      <Tabs defaultValue="overview" className="space-y-8">
-        <TabsList>
+      // Find the order to get its details for the notification
+      const order = orders.find(o => o.id === orderId);
+      
+      // Determine notification message based on status
+      let statusMessage = '';
+      switch (status) {
+        case 'processing':
+          statusMessage = 'is now being processed';
+          break;
+        case 'shipped':
+          statusMessage = 'has been shipped';
+          break;
+        case 'delivered':
+          statusMessage = 'has been delivered';
+          break;
+        case 'cancelled':
+          statusMessage = 'has been cancelled';
+          break;
+        default:
+          statusMessage = 'status has been updated';
+      }
+      
+      // Send notification to customer
+      if (order) {
+        addNotification({
+          title: 'Order Update',
+          message: `Your order #${order.id} ${statusMessage}.`,
+          type: 'info',
+          forRole: 'customer'
+        });
+        
+        // Send notification to vendor if relevant
+        if (status === 'processing' || status === 'shipped') {
+          addNotification({
+            title: 'Order Update',
+            message: `Order #${order.id} ${statusMessage}.`,
+            type: 'info',
+            forRole: 'vendor'
+          });
+        }
+        
+        toast.success('Order Updated', {
+          description: `Order #${order.id} ${statusMessage}.`
+        });
+      }
+    } catch (error) {
+      toast.error('Error', {
+        description: 'Failed to update order status. Please try again.'
+      });
+    }
+  };
+  
+  // Get next status options for an order
+  const getNextStatus = (currentStatus: OrderStatus): { status: OrderStatus, label: string }[] => {
+    switch (currentStatus) {
+      case 'pending':
+        return [
+          { status: 'processing', label: 'Process' },
+          { status: 'cancelled', label: 'Cancel' }
+        ];
+      case 'processing':
+        return [
+          { status: 'shipped', label: 'Ship' },
+          { status: 'cancelled', label: 'Cancel' }
+        ];
+      case 'shipped':
+        return [
+          { status: 'delivered', label: 'Mark Delivered' }
+        ];
+      default:
+        return [];
+    }
+  };
+  
+  // Get status badge color
+  const getStatusBadge = (status: OrderStatus) => {
+    switch (status) {
+      case 'pending':
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-600 border-yellow-200">
+          <Clock className="w-3 h-3 mr-1" /> Pending
+        </Badge>;
+      case 'processing':
+        return <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200">
+          <Package className="w-3 h-3 mr-1" /> Processing
+        </Badge>;
+      case 'shipped':
+        return <Badge variant="outline" className="bg-purple-50 text-purple-600 border-purple-200">
+          <Truck className="w-3 h-3 mr-1" /> Shipped
+        </Badge>;
+      case 'delivered':
+        return <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200">
+          <CheckCircle2 className="w-3 h-3 mr-1" /> Delivered
+        </Badge>;
+      case 'cancelled':
+        return <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200">
+          <X className="w-3 h-3 mr-1" /> Cancelled
+        </Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+  
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+        <p className="text-muted-foreground">Manage products, orders, and marketplace settings.</p>
+      </div>
+      
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid grid-cols-3 md:w-[400px]">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="products">Products</TabsTrigger>
           <TabsTrigger value="orders">Orders</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="overview" className="space-y-8">
-          <DashboardStats />
-          <div className="grid gap-4 md:grid-cols-2">
-            <PendingApprovals />
-            <RecentOrders />
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {/* Pending Approvals Card */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Pending Approvals</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{pendingApprovalCount}</div>
+                <p className="text-xs text-muted-foreground">
+                  Products waiting for your review
+                </p>
+              </CardContent>
+            </Card>
+            
+            {/* Pending Orders Card */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Pending Orders</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{pendingOrdersCount}</div>
+                <p className="text-xs text-muted-foreground">
+                  Orders awaiting processing
+                </p>
+              </CardContent>
+            </Card>
+            
+            {/* Total Products Card */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Products</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{products.length}</div>
+                <p className="text-xs text-muted-foreground">
+                  Products on the marketplace
+                </p>
+              </CardContent>
+            </Card>
           </div>
+          
+          {/* Pending Approvals Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Pending Approvals</CardTitle>
+              <CardDescription>
+                Review and approve new products submitted by vendors
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {pendingApprovalCount > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Vendor</TableHead>
+                      <TableHead>Price</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {products
+                      .filter(product => !product.approved)
+                      .slice(0, 5)
+                      .map((product) => (
+                        <TableRow key={product.id}>
+                          <TableCell className="font-medium">{product.name}</TableCell>
+                          <TableCell>{product.vendorName}</TableCell>
+                          <TableCell>${product.price.toFixed(2)}</TableCell>
+                          <TableCell className="capitalize">{product.category}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => window.location.href = `/product/${product.id}`}
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                View
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                onClick={() => handleApproveProduct(product.id)}
+                              >
+                                <Check className="h-4 w-4 mr-1" />
+                                Approve
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-4 text-muted-foreground">
+                  No pending approvals
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
         
-        <TabsContent value="products">
-          <ProductsManagement />
+        {/* Products Tab */}
+        <TabsContent value="products" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Products Management</CardTitle>
+              <CardDescription>
+                View, approve, and manage all products in the marketplace
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Filters and Search */}
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                  <Input
+                    placeholder="Search products..."
+                    className="pl-8"
+                    value={productSearchQuery}
+                    onChange={(e) => setProductSearchQuery(e.target.value)}
+                  />
+                </div>
+                <Select 
+                  value={productsFilter} 
+                  onValueChange={setProductsFilter}
+                >
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="Filter" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Products</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="pending">Pending Approval</SelectItem>
+                    <SelectItem value="featured">Featured</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Products Table */}
+              {currentProducts.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Vendor</TableHead>
+                      <TableHead>Price</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {currentProducts.map((product) => (
+                      <TableRow key={product.id}>
+                        <TableCell className="font-medium">{product.name}</TableCell>
+                        <TableCell>{product.vendorName}</TableCell>
+                        <TableCell>${product.price.toFixed(2)}</TableCell>
+                        <TableCell className="capitalize">{product.category}</TableCell>
+                        <TableCell>
+                          {product.approved ? (
+                            <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200">
+                              Approved
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-yellow-50 text-yellow-600 border-yellow-200">
+                              Pending
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => window.location.href = `/product/${product.id}`}
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              View
+                            </Button>
+                            {!product.approved && (
+                              <Button 
+                                size="sm" 
+                                onClick={() => handleApproveProduct(product.id)}
+                              >
+                                <Check className="h-4 w-4 mr-1" />
+                                Approve
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-4 text-muted-foreground">
+                  No products found matching your filters
+                </div>
+              )}
+              
+              {/* Products Pagination */}
+              {filteredProducts.length > productsPerPage && (
+                <div className="flex items-center justify-end space-x-2 py-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentProductsPage(prev => Math.max(prev - 1, 1))}
+                    className={currentProductsPage === 1 ? "opacity-50 cursor-not-allowed" : ""}
+                    disabled={currentProductsPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <div className="text-sm text-muted-foreground">
+                    Page {currentProductsPage} of {totalProductsPages}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentProductsPage(prev => Math.min(prev + 1, totalProductsPages))}
+                    className={currentProductsPage === totalProductsPages ? "opacity-50 cursor-not-allowed" : ""}
+                    disabled={currentProductsPage === totalProductsPages}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
         
-        <TabsContent value="orders">
-          <OrdersManagement />
+        {/* Orders Tab */}
+        <TabsContent value="orders" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Orders Management</CardTitle>
+              <CardDescription>
+                Monitor and manage all marketplace orders
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Filters and Search */}
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                  <Input
+                    placeholder="Search orders..."
+                    className="pl-8"
+                    value={orderSearchQuery}
+                    onChange={(e) => setOrderSearchQuery(e.target.value)}
+                  />
+                </div>
+                <Select 
+                  value={ordersFilter} 
+                  onValueChange={setOrdersFilter}
+                >
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="Filter" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Orders</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="processing">Processing</SelectItem>
+                    <SelectItem value="shipped">Shipped</SelectItem>
+                    <SelectItem value="delivered">Delivered</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Orders Table */}
+              {currentOrders.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Order ID</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Vendor</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {currentOrders.map((order) => (
+                      <TableRow key={order.id}>
+                        <TableCell className="font-medium">#{order.id}</TableCell>
+                        <TableCell>{order.customerName}</TableCell>
+                        <TableCell>{order.vendorName}</TableCell>
+                        <TableCell>${order.total.toFixed(2)}</TableCell>
+                        <TableCell>
+                          {getStatusBadge(order.status)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            {order.status !== 'delivered' && order.status !== 'cancelled' && (
+                              <div className="flex gap-2">
+                                {getNextStatus(order.status).map((nextStatus) => (
+                                  <Button
+                                    key={nextStatus.status}
+                                    size="sm"
+                                    variant={nextStatus.status === 'cancelled' ? 'destructive' : 'default'}
+                                    onClick={() => handleUpdateOrderStatus(order.id, nextStatus.status)}
+                                  >
+                                    {nextStatus.status === 'cancelled' ? (
+                                      <X className="h-4 w-4 mr-1" />
+                                    ) : nextStatus.status === 'delivered' ? (
+                                      <CheckCircle2 className="h-4 w-4 mr-1" />
+                                    ) : (
+                                      <RotateCcw className="h-4 w-4 mr-1" />
+                                    )}
+                                    {nextStatus.label}
+                                  </Button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-4 text-muted-foreground">
+                  No orders found matching your filters
+                </div>
+              )}
+              
+              {/* Orders Pagination */}
+              {filteredOrders.length > ordersPerPage && (
+                <div className="flex items-center justify-end space-x-2 py-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentOrdersPage(prev => Math.max(prev - 1, 1))}
+                    className={currentOrdersPage === 1 ? "opacity-50 cursor-not-allowed" : ""}
+                    disabled={currentOrdersPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <div className="text-sm text-muted-foreground">
+                    Page {currentOrdersPage} of {totalOrdersPages}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentOrdersPage(prev => Math.min(prev + 1, totalOrdersPages))}
+                    className={currentOrdersPage === totalOrdersPages ? "opacity-50 cursor-not-allowed" : ""}
+                    disabled={currentOrdersPage === totalOrdersPages}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
