@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { ChevronLeft, ChevronRight, Search, Check, X, Eye, Clock, Package, Truck, CheckCircle2, RotateCcw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, Check, X, Eye, Clock, Package, Truck, CheckCircle2, RotateCcw, DollarSign, ShoppingBag, BarChart3 } from 'lucide-react';
 
 const AdminDashboard = () => {
   const { user, isAuthenticated } = useAuth();
@@ -30,6 +30,15 @@ const AdminDashboard = () => {
   // Overview states
   const pendingApprovalCount = products.filter(p => !p.approved).length;
   const pendingOrdersCount = orders.filter(o => o.status === 'pending').length;
+  const totalProductCount = products.length;
+  
+  // Calculate total sales
+  const totalSales = orders
+    .filter(order => order.status !== 'cancelled')
+    .reduce((total, order) => total + order.total, 0);
+  
+  // Estimate profit (assuming 30% profit margin)
+  const estimatedProfit = totalSales * 0.3;
   
   // Products tab states
   const [productSearchQuery, setProductSearchQuery] = useState('');
@@ -266,9 +275,53 @@ const AdminDashboard = () => {
                 <CardTitle className="text-sm font-medium">Total Products</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{products.length}</div>
+                <div className="text-2xl font-bold">{totalProductCount}</div>
                 <p className="text-xs text-muted-foreground">
                   Products on the marketplace
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Total Sales Card */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">${totalSales.toFixed(2)}</div>
+                <p className="text-xs text-muted-foreground">
+                  Total value of all orders
+                </p>
+              </CardContent>
+            </Card>
+            
+            {/* Estimated Profit Card */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Estimated Profit</CardTitle>
+                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">${estimatedProfit.toFixed(2)}</div>
+                <p className="text-xs text-muted-foreground">
+                  30% of total sales (approx)
+                </p>
+              </CardContent>
+            </Card>
+            
+            {/* Product Categories Card */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Active Categories</CardTitle>
+                <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {new Set(products.map(p => p.category)).size}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Product categories available
                 </p>
               </CardContent>
             </Card>
@@ -330,6 +383,50 @@ const AdminDashboard = () => {
               ) : (
                 <div className="text-center py-4 text-muted-foreground">
                   No pending approvals
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Orders Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Orders</CardTitle>
+              <CardDescription>
+                Latest orders across the marketplace
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {orders.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Order ID</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {orders
+                      .slice(0, 5)
+                      .map((order) => (
+                        <TableRow key={order.id}>
+                          <TableCell className="font-medium">#{order.id}</TableCell>
+                          <TableCell>{order.customerName}</TableCell>
+                          <TableCell>${order.total.toFixed(2)}</TableCell>
+                          <TableCell>{getStatusBadge(order.status)}</TableCell>
+                          <TableCell className="text-right">
+                            {order.createdAt.toLocaleDateString()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-4 text-muted-foreground">
+                  No orders found
                 </div>
               )}
             </CardContent>
