@@ -15,7 +15,8 @@ interface ProductCardProps {
     category: string;
     images: string[];
     rating: number;
-    review_count: number;
+    review_count?: number; // Make this optional
+    reviewCount?: number;  // Add this as an alternative
     featured: boolean;
     stock: number;
   };
@@ -27,6 +28,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
     e.preventDefault(); // Prevent navigation
     onAddToCart();
   };
+  
+  // Calculate review count from either property
+  const reviewCount = product.review_count ?? product.reviewCount ?? 0;
   
   return (
     <Card className="overflow-hidden transition-all duration-300 hover:shadow-md h-full flex flex-col">
@@ -74,7 +78,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
               ))}
             </div>
             <span className="text-xs text-muted-foreground">
-              ({product.review_count})
+              ({reviewCount})
             </span>
           </div>
         </Link>
