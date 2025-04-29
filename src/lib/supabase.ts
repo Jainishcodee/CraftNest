@@ -13,3 +13,19 @@ console.log('Supabase client initialized with URL:',
   supabaseUrl === 'https://your-supabase-project.supabase.co' ? 
   'FALLBACK URL (not connected)' : 
   'Connected to Supabase');
+
+// Enable realtime subscriptions for specific tables
+// This must be enabled for realtime updates to work
+export const enableRealtimeSubscriptions = async () => {
+  try {
+    // Enable realtime for products table
+    await supabase.channel('public:products').subscribe();
+    console.log('Realtime subscriptions enabled for products table');
+    
+    // Enable for other tables as needed
+    // await supabase.channel('public:orders').subscribe();
+    // await supabase.channel('public:reviews').subscribe();
+  } catch (error) {
+    console.error('Failed to enable realtime subscriptions:', error);
+  }
+};

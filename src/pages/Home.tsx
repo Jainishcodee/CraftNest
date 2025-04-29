@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight, ShoppingBag, Heart, Shield, TrendingUp } from 'lucide-react';
 import ProductCard from '@/components/common/ProductCard';
 import { toast } from 'sonner';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const Home = () => {
-  const { products, addToCart } = useData();
+  const { products, addToCart, loadingProducts } = useData();
   
   // Filter approved and featured products
   const featuredProducts = products
@@ -28,6 +29,22 @@ const Home = () => {
       description: `${product.name} has been added to your cart`,
     });
   };
+
+  // Loading skeletons for products
+  const ProductSkeleton = () => (
+    <div className="border rounded-lg overflow-hidden">
+      <Skeleton className="h-48 w-full" />
+      <div className="p-4">
+        <Skeleton className="h-4 w-24 mb-2" />
+        <Skeleton className="h-6 w-full mb-4" />
+        <Skeleton className="h-4 w-32 mb-4" />
+        <div className="flex justify-between">
+          <Skeleton className="h-8 w-16" />
+          <Skeleton className="h-8 w-20" />
+        </div>
+      </div>
+    </div>
+  );
   
   return (
     <>
@@ -78,20 +95,28 @@ const Home = () => {
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {featuredProducts.map(product => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onAddToCart={() => handleAddToCart(product)}
-              />
-            ))}
+            {loadingProducts ? (
+              // Show skeletons while loading
+              Array(4).fill(0).map((_, i) => <ProductSkeleton key={i} />)
+            ) : featuredProducts.length > 0 ? (
+              // Show featured products
+              featuredProducts.map(product => (
+                <ProductCard
+                  key={product.id}
+                  product={{
+                    ...product,
+                    review_count: product.reviewCount // Map for compatibility
+                  }}
+                  onAddToCart={() => handleAddToCart(product)}
+                />
+              ))
+            ) : (
+              // No featured products
+              <div className="col-span-4 text-center py-12">
+                <p className="text-muted-foreground">No featured products available</p>
+              </div>
+            )}
           </div>
-          
-          {featuredProducts.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">No featured products available</p>
-            </div>
-          )}
         </div>
       </section>
 
@@ -142,20 +167,28 @@ const Home = () => {
           </div>
           
           <div className="product-grid">
-            {recentProducts.map(product => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onAddToCart={() => handleAddToCart(product)}
-              />
-            ))}
+            {loadingProducts ? (
+              // Show skeletons while loading
+              Array(8).fill(0).map((_, i) => <ProductSkeleton key={i} />)
+            ) : recentProducts.length > 0 ? (
+              // Show recent products
+              recentProducts.map(product => (
+                <ProductCard
+                  key={product.id}
+                  product={{
+                    ...product,
+                    review_count: product.reviewCount // Map for compatibility
+                  }}
+                  onAddToCart={() => handleAddToCart(product)}
+                />
+              ))
+            ) : (
+              // No recent products
+              <div className="col-span-4 text-center py-12">
+                <p className="text-muted-foreground">No products available</p>
+              </div>
+            )}
           </div>
-          
-          {recentProducts.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">No products available</p>
-            </div>
-          )}
         </div>
       </section>
 

@@ -1,5 +1,7 @@
-
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import { supabase, enableRealtimeSubscriptions } from '@/lib/supabase';
+import { toast } from 'sonner';
+import { productsAPI } from '@/services/api';
 
 // Define product category
 export type ProductCategory = 'pottery' | 'jewelry' | 'woodwork' | 'textiles' | 'art' | 'other';
@@ -57,210 +59,6 @@ export interface Review {
   createdAt: Date;
 }
 
-// Sample products data
-const SAMPLE_PRODUCTS: Product[] = [
-  {
-    id: '1',
-    name: 'Handmade Ceramic Bowl',
-    description: 'Beautiful handcrafted ceramic bowl perfect for your kitchen.',
-    price: 29.99,
-    vendorId: '2',
-    vendorName: 'Jane Vendor',
-    category: 'pottery',
-    images: ['/placeholder.svg'],
-    rating: 4.5,
-    reviewCount: 12,
-    approved: true,
-    featured: true,
-    stock: 15,
-    createdAt: new Date('2023-05-15')
-  },
-  {
-    id: '2',
-    name: 'Wooden Cutting Board',
-    description: 'Artisanal cutting board made from sustainable wood.',
-    price: 49.99,
-    vendorId: '2',
-    vendorName: 'Jane Vendor',
-    category: 'woodwork',
-    images: ['/placeholder.svg'],
-    rating: 5,
-    reviewCount: 8,
-    approved: true,
-    featured: false,
-    stock: 7,
-    createdAt: new Date('2023-04-10')
-  },
-  {
-    id: '3',
-    name: 'Handwoven Basket',
-    description: 'Traditional handwoven basket using natural materials.',
-    price: 34.99,
-    vendorId: '2',
-    vendorName: 'Jane Vendor',
-    category: 'textiles',
-    images: ['/placeholder.svg'],
-    rating: 4.2,
-    reviewCount: 5,
-    approved: true,
-    featured: false,
-    stock: 10,
-    createdAt: new Date('2023-06-20')
-  },
-  {
-    id: '4',
-    name: 'Silver Pendant Necklace',
-    description: 'Elegant hand-crafted silver pendant with intricate detailing.',
-    price: 79.99,
-    vendorId: '2',
-    vendorName: 'Jane Vendor',
-    category: 'jewelry',
-    images: ['/placeholder.svg'],
-    rating: 4.8,
-    reviewCount: 15,
-    approved: true,
-    featured: true,
-    stock: 5,
-    createdAt: new Date('2023-03-10')
-  },
-  {
-    id: '5',
-    name: 'Abstract Wall Art',
-    description: 'Original abstract painting on canvas, perfect for modern homes.',
-    price: 149.99,
-    vendorId: '2',
-    vendorName: 'Jane Vendor',
-    category: 'art',
-    images: ['/placeholder.svg'],
-    rating: 4.7,
-    reviewCount: 6,
-    approved: true,
-    featured: false,
-    stock: 3,
-    createdAt: new Date('2023-07-05')
-  },
-  {
-    id: '6',
-    name: 'Macramé Plant Hanger',
-    description: 'Handcrafted macramé plant hanger made with 100% cotton rope.',
-    price: 19.99,
-    vendorId: '2',
-    vendorName: 'Jane Vendor',
-    category: 'textiles',
-    images: ['/placeholder.svg'],
-    rating: 4.4,
-    reviewCount: 9,
-    approved: true,
-    featured: false,
-    stock: 20,
-    createdAt: new Date('2023-05-25')
-  }
-];
-
-// Sample orders data
-const SAMPLE_ORDERS: Order[] = [
-  {
-    id: '1',
-    customerId: '1',
-    customerName: 'John Customer',
-    vendorId: '2',
-    vendorName: 'Jane Vendor',
-    products: [
-      {
-        productId: '1',
-        name: 'Handmade Ceramic Bowl',
-        price: 29.99,
-        quantity: 2
-      }
-    ],
-    total: 59.98,
-    status: 'delivered',
-    shippingAddress: '123 Main St, New York, NY 10001',
-    paymentMethod: 'Credit Card',
-    createdAt: new Date('2023-06-10'),
-    updatedAt: new Date('2023-06-15')
-  },
-  {
-    id: '2',
-    customerId: '1',
-    customerName: 'John Customer',
-    vendorId: '2',
-    vendorName: 'Jane Vendor',
-    products: [
-      {
-        productId: '4',
-        name: 'Silver Pendant Necklace',
-        price: 79.99,
-        quantity: 1
-      }
-    ],
-    total: 79.99,
-    status: 'shipped',
-    shippingAddress: '123 Main St, New York, NY 10001',
-    paymentMethod: 'PayPal',
-    createdAt: new Date('2023-07-01'),
-    updatedAt: new Date('2023-07-03')
-  },
-  {
-    id: '3',
-    customerId: '1',
-    customerName: 'John Customer',
-    vendorId: '2',
-    vendorName: 'Jane Vendor',
-    products: [
-      {
-        productId: '2',
-        name: 'Wooden Cutting Board',
-        price: 49.99,
-        quantity: 1
-      },
-      {
-        productId: '6',
-        name: 'Macramé Plant Hanger',
-        price: 19.99,
-        quantity: 2
-      }
-    ],
-    total: 89.97,
-    status: 'pending',
-    shippingAddress: '123 Main St, New York, NY 10001',
-    paymentMethod: 'Credit Card',
-    createdAt: new Date('2023-07-10'),
-    updatedAt: new Date('2023-07-10')
-  }
-];
-
-// Sample reviews data
-const SAMPLE_REVIEWS: Review[] = [
-  {
-    id: '1',
-    productId: '1',
-    customerId: '1',
-    customerName: 'John Customer',
-    rating: 5,
-    comment: 'Beautiful bowl! Excellent craftsmanship and arrived quickly.',
-    createdAt: new Date('2023-06-20')
-  },
-  {
-    id: '2',
-    productId: '1',
-    customerId: '3',
-    customerName: 'Sarah Johnson',
-    rating: 4,
-    comment: 'Lovely bowl, a bit smaller than I expected but great quality.',
-    createdAt: new Date('2023-06-25')
-  },
-  {
-    id: '3',
-    productId: '4',
-    customerId: '1',
-    customerName: 'John Customer',
-    rating: 5,
-    comment: 'Gorgeous pendant! Even more beautiful in person.',
-    createdAt: new Date('2023-07-05')
-  }
-];
-
 // Define data context interface
 interface DataContextType {
   products: Product[];
@@ -274,16 +72,126 @@ interface DataContextType {
   createOrder: (order: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>) => Promise<string>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
   addReview: (review: Omit<Review, 'id' | 'createdAt'>) => Promise<void>;
+  loadingProducts: boolean;
 }
 
 // Create the data context
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [products, setProducts] = useState<Product[]>(SAMPLE_PRODUCTS);
-  const [orders, setOrders] = useState<Order[]>(SAMPLE_ORDERS);
-  const [reviews, setReviews] = useState<Review[]>(SAMPLE_REVIEWS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [cart, setCart] = useState<{ product: Product; quantity: number }[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState<boolean>(true);
+  
+  // Fetch products on mount
+  useEffect(() => {
+    const fetchProducts = async () => {
+      setLoadingProducts(true);
+      try {
+        const { data, error } = await productsAPI.getAll(true); // Only get approved products
+        
+        if (error) {
+          console.error('Error fetching products:', error);
+          return;
+        }
+        
+        if (data) {
+          // Transform Supabase data to match our Product interface
+          const transformedProducts: Product[] = data.map(item => ({
+            id: item.id,
+            name: item.name,
+            description: item.description,
+            price: parseFloat(item.price),
+            vendorId: item.vendor_id,
+            vendorName: item.vendor_name,
+            category: item.category as ProductCategory,
+            images: Array.isArray(item.images) ? item.images : [],
+            rating: parseFloat(item.rating) || 0,
+            reviewCount: item.review_count || 0,
+            approved: item.approved,
+            featured: item.featured,
+            stock: item.stock,
+            createdAt: new Date(item.created_at)
+          }));
+          
+          setProducts(transformedProducts);
+        }
+      } catch (error) {
+        console.error('Error loading products:', error);
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+    
+    fetchProducts();
+    
+    // Enable realtime subscriptions
+    enableRealtimeSubscriptions();
+    
+    // Listen for product changes in real-time
+    const productSubscription = supabase
+      .channel('public:products')
+      .on('postgres_changes', 
+          { event: '*', schema: 'public', table: 'products' }, 
+          async (payload) => {
+            console.log('Realtime product update:', payload);
+            
+            // If a product was inserted or updated
+            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+              const newProduct = payload.new;
+              
+              // Only add/update if the product is approved
+              if (newProduct.approved) {
+                // Refresh product list to ensure we have the latest data
+                const { data, error } = await productsAPI.getAll(true);
+                
+                if (data && !error) {
+                  const transformedProducts: Product[] = data.map(item => ({
+                    id: item.id,
+                    name: item.name,
+                    description: item.description,
+                    price: parseFloat(item.price),
+                    vendorId: item.vendor_id,
+                    vendorName: item.vendor_name,
+                    category: item.category as ProductCategory,
+                    images: Array.isArray(item.images) ? item.images : [],
+                    rating: parseFloat(item.rating) || 0,
+                    reviewCount: item.review_count || 0,
+                    approved: item.approved,
+                    featured: item.featured,
+                    stock: item.stock,
+                    createdAt: new Date(item.created_at)
+                  }));
+                  
+                  setProducts(transformedProducts);
+                  
+                  // Show a toast notification for new products
+                  if (payload.eventType === 'INSERT') {
+                    toast.info('New product available!', {
+                      description: `${newProduct.name} has been added to the store`
+                    });
+                  }
+                }
+              }
+            }
+            
+            // If a product was deleted, remove it from state
+            if (payload.eventType === 'DELETE') {
+              const deletedProductId = payload.old.id;
+              setProducts(prevProducts => 
+                prevProducts.filter(p => p.id !== deletedProductId)
+              );
+            }
+          })
+      .subscribe();
+    
+    // Clean up the subscription when component unmounts
+    return () => {
+      supabase.removeChannel(productSubscription);
+    };
+  }, []);
 
   // Add new product
   const addProduct = async (product: Omit<Product, 'id' | 'approved' | 'createdAt'>) => {
@@ -400,6 +308,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         createOrder,
         updateOrderStatus,
         addReview,
+        loadingProducts,
       }}
     >
       {children}
