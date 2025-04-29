@@ -1,5 +1,5 @@
 
-// API service to connect React frontend with TypeScript backend
+import { supabase } from '@/lib/supabase';
 
 export interface ApiResponse<T> {
   data?: T;
@@ -7,111 +7,275 @@ export interface ApiResponse<T> {
   message?: string;
 }
 
-const API_URL = 'http://localhost:3001/api';
-
-// Generic fetch function with error handling
-async function fetchAPI<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<ApiResponse<T>> {
-  try {
-    const url = `${API_URL}${endpoint}`;
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return {
-        error: data.message || `Error: ${response.status}`,
-      };
-    }
-
-    return { data: data as T };
-  } catch (error) {
-    console.error('API Error:', error);
-    return {
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
-    };
-  }
-}
-
 // Auth API
 export const authAPI = {
-  login: (email: string, password: string, role: string) =>
-    fetchAPI('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password, role }),
-    }),
-
-  register: (name: string, email: string, password: string, role: string) =>
-    fetchAPI('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ name, email, password, role }),
-    }),
+  // Auth is now handled directly in AuthContext using Supabase client
+  login: async () => {
+    return { message: "Auth is now handled by Supabase client" };
+  },
+  
+  register: async () => {
+    return { message: "Auth is now handled by Supabase client" };
+  },
 };
 
 // Products API
 export const productsAPI = {
-  getAll: (approved?: boolean) =>
-    fetchAPI(`/products${approved !== undefined ? `?approved=${approved}` : ''}`),
+  getAll: async (approved?: boolean) => {
+    try {
+      let query = supabase.from('products').select('*');
+      
+      if (approved !== undefined) {
+        query = query.eq('approved', approved);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        return { error: error.message };
+      }
+      
+      return { data };
+    } catch (error) {
+      console.error('API Error:', error);
+      return {
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  },
 
-  getById: (id: string) => fetchAPI(`/products/${id}`),
+  getById: async (id: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        return { error: error.message };
+      }
+      
+      return { data };
+    } catch (error) {
+      console.error('API Error:', error);
+      return {
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  },
 
-  create: (productData: any) =>
-    fetchAPI('/products', {
-      method: 'POST',
-      body: JSON.stringify(productData),
-    }),
+  create: async (productData: any) => {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .insert(productData)
+        .select()
+        .single();
+      
+      if (error) {
+        return { error: error.message };
+      }
+      
+      return { data };
+    } catch (error) {
+      console.error('API Error:', error);
+      return {
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  },
 
-  approve: (id: string, approved: boolean) =>
-    fetchAPI(`/products/${id}/approve`, {
-      method: 'PATCH',
-      body: JSON.stringify({ approved }),
-    }),
+  approve: async (id: string, approved: boolean) => {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .update({ approved })
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) {
+        return { error: error.message };
+      }
+      
+      return { data };
+    } catch (error) {
+      console.error('API Error:', error);
+      return {
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  },
 
-  getVendorProducts: (vendorId: string) =>
-    fetchAPI(`/products/vendor/${vendorId}`),
+  getVendorProducts: async (vendorId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('vendorId', vendorId);
+      
+      if (error) {
+        return { error: error.message };
+      }
+      
+      return { data };
+    } catch (error) {
+      console.error('API Error:', error);
+      return {
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  },
 };
 
 // Orders API
 export const ordersAPI = {
-  getAll: () => fetchAPI('/orders'),
+  getAll: async () => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*');
+      
+      if (error) {
+        return { error: error.message };
+      }
+      
+      return { data };
+    } catch (error) {
+      console.error('API Error:', error);
+      return {
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  },
 
-  getCustomerOrders: (customerId: string) =>
-    fetchAPI(`/orders/customer/${customerId}`),
+  getCustomerOrders: async (customerId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('customerId', customerId);
+      
+      if (error) {
+        return { error: error.message };
+      }
+      
+      return { data };
+    } catch (error) {
+      console.error('API Error:', error);
+      return {
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  },
 
-  getVendorOrders: (vendorId: string) =>
-    fetchAPI(`/orders/vendor/${vendorId}`),
+  getVendorOrders: async (vendorId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('vendorId', vendorId);
+      
+      if (error) {
+        return { error: error.message };
+      }
+      
+      return { data };
+    } catch (error) {
+      console.error('API Error:', error);
+      return {
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  },
 
-  create: (orderData: any) =>
-    fetchAPI('/orders', {
-      method: 'POST',
-      body: JSON.stringify(orderData),
-    }),
+  create: async (orderData: any) => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .insert(orderData)
+        .select()
+        .single();
+      
+      if (error) {
+        return { error: error.message };
+      }
+      
+      return { data };
+    } catch (error) {
+      console.error('API Error:', error);
+      return {
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  },
 
-  updateStatus: (id: string, status: string) =>
-    fetchAPI(`/orders/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    }),
+  updateStatus: async (id: string, status: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .update({ status })
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) {
+        return { error: error.message };
+      }
+      
+      return { data };
+    } catch (error) {
+      console.error('API Error:', error);
+      return {
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  },
 };
 
 // Reviews API
 export const reviewsAPI = {
-  getProductReviews: (productId: string) =>
-    fetchAPI(`/reviews/product/${productId}`),
+  getProductReviews: async (productId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('reviews')
+        .select('*')
+        .eq('productId', productId);
+      
+      if (error) {
+        return { error: error.message };
+      }
+      
+      return { data };
+    } catch (error) {
+      console.error('API Error:', error);
+      return {
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  },
 
-  create: (reviewData: any) =>
-    fetchAPI('/reviews', {
-      method: 'POST',
-      body: JSON.stringify(reviewData),
-    }),
+  create: async (reviewData: any) => {
+    try {
+      const { data, error } = await supabase
+        .from('reviews')
+        .insert(reviewData)
+        .select()
+        .single();
+      
+      if (error) {
+        return { error: error.message };
+      }
+      
+      return { data };
+    } catch (error) {
+      console.error('API Error:', error);
+      return {
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  },
 };
 
 // Export all APIs
