@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -14,9 +14,9 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Star } from 'lucide-react';
-import { useData } from '@/contexts/DataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
+import { supabase } from '@/lib/supabase';
 
 interface ReviewFormProps {
   productId: string;
@@ -29,9 +29,9 @@ const FormSchema = z.object({
 });
 
 const ReviewForm: React.FC<ReviewFormProps> = ({ productId, onSuccess }) => {
-  const { addReview } = useData();
   const { user } = useAuth();
-  const [hoveredRating, setHoveredRating] = React.useState(0);
+  const [hoveredRating, setHoveredRating] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   
   const form = useForm<z.infer<typeof FormSchema>>({
@@ -46,13 +46,43 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ productId, onSuccess }) => {
     if (!user) return;
     
     try {
-      await addReview({
-        productId,
-        customerId: user.id,
-        customerName: user.name,
+      setIsSubmitting(true);
+      
+      // Insert review into Supabase
+      const { error } = await supabase.from('reviews').insert({
+        product_id: productId,
+        customer_id: user.id,
+        customer_name: user.name,
         rating: data.rating,
         comment: data.comment,
+        created_at: new Date().toISOString(),
       });
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Update product rating in Supabase
+      // First get all reviews for this product
+      const { data: productReviews, error: reviewsError } = await supabase
+        .from('reviews')
+        .select('rating')
+        .eq('product_id', productId);
+      
+      if (!reviewsError && productReviews) {
+        // Calculate average rating
+        const avgRating = 
+          productReviews.reduce((sum, review) => sum + review.rating, 0) / productReviews.length;
+        
+        // Update product with new rating and review count
+        await supabase
+          .from('products')
+          .update({ 
+            rating: avgRating, 
+            review_count: productReviews.length 
+          })
+          .eq('id', productId);
+      }
       
       toast({
         title: 'Review submitted',
@@ -62,11 +92,14 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ productId, onSuccess }) => {
       form.reset();
       onSuccess();
     } catch (error) {
+      console.error('Error submitting review:', error);
       toast({
         variant: 'destructive',
         title: 'Error',
         description: 'Failed to submit review. Please try again.',
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
   
@@ -130,9 +163,9 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ productId, onSuccess }) => {
         <Button
           type="submit"
           className="craft-btn-primary"
-          disabled={watchedRating === 0}
+          disabled={watchedRating === 0 || isSubmitting}
         >
-          Submit Review
+          {isSubmitting ? 'Submitting...' : 'Submit Review'}
         </Button>
       </form>
     </Form>

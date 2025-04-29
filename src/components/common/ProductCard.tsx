@@ -1,72 +1,101 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Product } from '@/contexts/DataContext';
-import { AspectRatio } from '@/components/ui/aspect-ratio';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Star, ShoppingCart } from 'lucide-react';
 
 interface ProductCardProps {
-  product: Product;
-  onAddToCart?: () => void;
+  product: {
+    id: string;
+    name: string;
+    description: string;
+    price: number;
+    category: string;
+    images: string[];
+    rating: number;
+    review_count: number;
+    featured: boolean;
+    stock: number;
+  };
+  onAddToCart: () => void;
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent navigation
+    onAddToCart();
+  };
+  
   return (
-    <div className="craft-card group">
-      <Link to={`/product/${product.id}`}>
-        <div className="relative">
-          <AspectRatio ratio={4/3}>
+    <Card className="overflow-hidden transition-all duration-300 hover:shadow-md h-full flex flex-col">
+      <div className="relative">
+        <Link to={`/product/${product.id}`} className="block">
+          <div className="aspect-square overflow-hidden">
             <img
               src={product.images[0]}
               alt={product.name}
-              className="object-cover w-full h-full transition-transform group-hover:scale-105"
+              className="object-cover w-full h-full transition-transform duration-300 hover:scale-105"
             />
-          </AspectRatio>
-          {product.featured && (
-            <Badge className="absolute top-2 left-2 bg-craft-terracotta hover:bg-craft-terracotta">
-              Featured
+          </div>
+        </Link>
+        {product.featured && (
+          <Badge className="absolute top-2 left-2 bg-craft-terracotta">
+            Featured
+          </Badge>
+        )}
+      </div>
+      
+      <CardContent className="flex-grow p-4">
+        <Link to={`/product/${product.id}`} className="block">
+          <div className="mb-2">
+            <Badge variant="outline" className="mb-2">
+              {product.category}
             </Badge>
-          )}
-        </div>
-        
-        <div className="p-4">
-          <div className="flex justify-between items-start mb-2">
-            <h3 className="font-semibold text-lg line-clamp-1">{product.name}</h3>
-            <span className="font-bold text-craft-teal">${product.price.toFixed(2)}</span>
+            <h3 className="font-medium line-clamp-1 text-lg">{product.name}</h3>
           </div>
           
-          <p className="text-muted-foreground text-sm mb-3 line-clamp-2">
+          <p className="text-muted-foreground line-clamp-2 text-sm mb-2">
             {product.description}
           </p>
           
-          <div className="flex justify-between items-center">
-            <div className="flex items-center">
-              <Star className="h-4 w-4 fill-amber-400 stroke-amber-400 mr-1" />
-              <span className="text-sm font-medium">{product.rating.toFixed(1)}</span>
-              <span className="text-xs text-muted-foreground ml-1">({product.reviewCount})</span>
+          <div className="flex items-center gap-1 mb-1">
+            <div className="flex">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Star
+                  key={star}
+                  className={`h-3 w-3 ${
+                    star <= Math.round(product.rating)
+                      ? 'fill-amber-400 text-amber-400'
+                      : 'text-gray-300'
+                  }`}
+                />
+              ))}
             </div>
-            <span className="text-xs text-muted-foreground">By {product.vendorName}</span>
+            <span className="text-xs text-muted-foreground">
+              ({product.review_count})
+            </span>
           </div>
-        </div>
-      </Link>
+        </Link>
+      </CardContent>
       
-      {onAddToCart && (
-        <div className="px-4 pb-4">
-          <Button 
-            onClick={(e) => {
-              e.preventDefault();
-              onAddToCart();
-            }} 
-            className="w-full craft-btn-primary"
-          >
-            <ShoppingCart className="h-4 w-4 mr-2" />
-            Add to Cart
-          </Button>
+      <CardFooter className="p-4 pt-0 flex items-center justify-between mt-auto">
+        <div className="font-bold text-craft-teal">
+          ${product.price.toFixed(2)}
         </div>
-      )}
-    </div>
+        
+        <Button
+          size="sm"
+          onClick={handleAddToCart}
+          disabled={product.stock === 0}
+          className="craft-btn-primary"
+        >
+          <ShoppingCart className="h-4 w-4 mr-1" />
+          {product.stock === 0 ? 'Out of Stock' : 'Add'}
+        </Button>
+      </CardFooter>
+    </Card>
   );
 };
 

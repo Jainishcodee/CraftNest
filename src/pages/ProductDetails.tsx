@@ -1,7 +1,5 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useData } from '@/contexts/DataContext';
 import { Button } from '@/components/ui/button';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Separator } from '@/components/ui/separator';
@@ -9,17 +7,90 @@ import { Badge } from '@/components/ui/badge';
 import { ShoppingCart, Star, Minus, Plus, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductReviews from '@/components/common/ProductReviews';
+import { supabase } from '@/lib/supabase';
+import { useToast } from '@/components/ui/use-toast';
+
+interface Product {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  vendor_id: string;
+  vendor_name: string;
+  category: string;
+  images: string[];
+  rating: number;
+  review_count: number;
+  approved: boolean;
+  featured: boolean;
+  stock: number;
+  created_at: string;
+}
 
 const ProductDetails = () => {
   const { id } = useParams<{ id: string }>();
-  const { products, addToCart } = useData();
   const navigate = useNavigate();
   const [quantity, setQuantity] = useState(1);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast: uiToast } = useToast();
   
-  // Find the product by id
-  const product = products.find(p => p.id === id);
+  useEffect(() => {
+    const fetchProduct = async () => {
+      if (!id) return;
+      
+      try {
+        setIsLoading(true);
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('id', id)
+          .single();
+        
+        if (error) {
+          throw error;
+        }
+        
+        setProduct(data as Product);
+      } catch (error) {
+        console.error('Error fetching product:', error);
+        uiToast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to load product details.',
+        });
+        navigate('/products');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchProduct();
+  }, [id, navigate, uiToast]);
   
-  // If product not found or not approved, redirect to products page
+  const handleAddToCart = () => {
+    if (product) {
+      toast.success('Added to cart', {
+        description: `${quantity} × ${product.name} added to your cart`,
+      });
+    }
+  };
+  
+  const handleQuantityChange = (amount: number) => {
+    const newQuantity = quantity + amount;
+    if (product && newQuantity >= 1 && newQuantity <= product.stock) {
+      setQuantity(newQuantity);
+    }
+  };
+  
+  if (isLoading) {
+    return (
+      <div className="craft-container py-16 text-center">
+        <p>Loading product details...</p>
+      </div>
+    );
+  }
+  
   if (!product || !product.approved) {
     return (
       <div className="craft-container py-16 text-center">
@@ -33,20 +104,6 @@ const ProductDetails = () => {
     );
   }
   
-  const handleQuantityChange = (amount: number) => {
-    const newQuantity = quantity + amount;
-    if (newQuantity >= 1 && newQuantity <= product.stock) {
-      setQuantity(newQuantity);
-    }
-  };
-  
-  const handleAddToCart = () => {
-    addToCart(product, quantity);
-    toast.success('Added to cart', {
-      description: `${quantity} × ${product.name} added to your cart`,
-    });
-  };
-  
   return (
     <div className="craft-container py-8 md:py-12">
       <Button variant="ghost" onClick={() => navigate(-1)} className="mb-6">
@@ -55,7 +112,6 @@ const ProductDetails = () => {
       </Button>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-        {/* Product image */}
         <div>
           <AspectRatio ratio={1}>
             <img
@@ -66,7 +122,6 @@ const ProductDetails = () => {
           </AspectRatio>
         </div>
         
-        {/* Product info */}
         <div className="space-y-6">
           <div>
             <div className="flex items-center gap-2 mb-2">
@@ -90,7 +145,7 @@ const ProductDetails = () => {
                 ))}
               </div>
               <span className="text-sm text-muted-foreground">
-                ({product.reviewCount} {product.reviewCount === 1 ? 'review' : 'reviews'})
+                ({product.review_count} {product.review_count === 1 ? 'review' : 'reviews'})
               </span>
             </div>
           </div>
@@ -102,9 +157,9 @@ const ProductDetails = () => {
           <p className="text-muted-foreground">{product.description}</p>
           
           <div>
-            <p className="font-medium mb-2">By: {product.vendorName}</p>
+            <p className="font-medium mb-2">By: {product.vendor_name}</p>
             <p className="text-sm text-muted-foreground">
-              Added on {product.createdAt.toLocaleDateString()}
+              Added on {new Date(product.created_at).toLocaleDateString()}
             </p>
           </div>
           
@@ -152,7 +207,6 @@ const ProductDetails = () => {
         </div>
       </div>
       
-      {/* Reviews section */}
       <div className="mt-16">
         <Separator className="mb-8" />
         <ProductReviews productId={product.id} />

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -30,6 +29,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { Upload, X, ArrowLeft } from 'lucide-react';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { supabase } from '@/lib/supabase';
 
 const productSchema = z.object({
   name: z.string().min(2, { message: 'Product name must be at least 2 characters' }),
@@ -42,12 +42,12 @@ const productSchema = z.object({
 
 const ProductUpload = () => {
   const { user, isAuthenticated } = useAuth();
-  const { addProduct } = useData();
   const { addNotification } = useNotifications();
   const navigate = useNavigate();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imagePreview, setImagePreview] = useState<string>('/placeholder.svg');
+  const [imageFile, setImageFile] = useState<File | null>(null);
   
   // Redirect if user is not a vendor
   if (!isAuthenticated || user?.role !== 'vendor') {
@@ -70,8 +70,8 @@ const ProductUpload = () => {
     const file = event.target.files?.[0];
     
     if (file) {
-      // In a real app, this would upload to a server
-      // Here we just create an object URL for preview
+      setImageFile(file);
+      // Create object URL for preview
       const imageUrl = URL.createObjectURL(file);
       setImagePreview(imageUrl);
     }
@@ -83,21 +83,53 @@ const ProductUpload = () => {
     try {
       setIsSubmitting(true);
       
-      // In a real app, you would upload images to a server
-      // Here we just use the placeholder image
-      await addProduct({
+      let imageUrl = '/placeholder.svg';
+      
+      // Upload image to Supabase Storage if there's a file
+      if (imageFile) {
+        const fileExt = imageFile.name.split('.').pop();
+        const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+        const filePath = `products/${fileName}`;
+        
+        const { error: uploadError, data: uploadData } = await supabase.storage
+          .from('product-images')
+          .upload(filePath, imageFile);
+          
+        if (uploadError) {
+          console.error('Error uploading image:', uploadError);
+          toast.error('Image upload failed', {
+            description: 'Could not upload product image. Using placeholder instead.',
+          });
+        } else {
+          // Get public URL for the uploaded image
+          const { data: { publicUrl } } = supabase.storage
+            .from('product-images')
+            .getPublicUrl(filePath);
+            
+          imageUrl = publicUrl;
+        }
+      }
+      
+      // Insert product into Supabase
+      const { error, data: newProduct } = await supabase.from('products').insert({
         name: data.name,
         description: data.description,
         price: data.price,
-        category: data.category as ProductCategory,
-        vendorId: user.id,
-        vendorName: user.name,
-        images: [imagePreview],
+        category: data.category,
+        vendor_id: user.id,
+        vendor_name: user.name,
+        images: [imageUrl],
         rating: 0,
-        reviewCount: 0,
+        review_count: 0,
+        approved: false, // Admin needs to approve
         featured: data.featured,
         stock: data.stock,
-      });
+        created_at: new Date().toISOString(),
+      }).select().single();
+      
+      if (error) {
+        throw error;
+      }
       
       // Notify admin about new product
       addNotification({
@@ -113,6 +145,7 @@ const ProductUpload = () => {
       
       navigate('/vendor');
     } catch (error) {
+      console.error('Error submitting product:', error);
       toast.error('Error', {
         description: 'Failed to submit product. Please try again.',
       });
@@ -156,7 +189,10 @@ const ProductUpload = () => {
                       variant="destructive"
                       size="icon"
                       className="absolute top-2 right-2"
-                      onClick={() => setImagePreview('/placeholder.svg')}
+                      onClick={() => {
+                        setImagePreview('/placeholder.svg');
+                        setImageFile(null);
+                      }}
                     >
                       <X className="h-4 w-4" />
                       <span className="sr-only">Remove image</span>

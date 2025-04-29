@@ -1,24 +1,65 @@
 
-import React from 'react';
-import { useData } from '@/contexts/DataContext';
+import React, { useState, useEffect } from 'react';
 import { Star, User } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import ReviewForm from './ReviewForm';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/lib/supabase';
+import { useToast } from '@/components/ui/use-toast';
+
+interface Review {
+  id: string;
+  product_id: string;
+  customer_id: string;
+  customer_name: string;
+  rating: number;
+  comment: string;
+  created_at: string;
+}
 
 interface ProductReviewsProps {
   productId: string;
 }
 
 const ProductReviews: React.FC<ProductReviewsProps> = ({ productId }) => {
-  const { reviews } = useData();
   const { user, isAuthenticated } = useAuth();
-  const [showForm, setShowForm] = React.useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
   
-  const productReviews = reviews.filter(review => review.productId === productId);
+  useEffect(() => {
+    const fetchReviews = async () => {
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('reviews')
+          .select('*')
+          .eq('product_id', productId)
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          throw error;
+        }
+        
+        setReviews(data || []);
+      } catch (error) {
+        console.error('Error fetching reviews:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to load product reviews.',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchReviews();
+  }, [productId, toast]);
   
-  const hasReviewed = productReviews.some(review => review.customerId === user?.id);
+  const hasReviewed = reviews.some(review => review.customer_id === user?.id);
   
   return (
     <div className="space-y-6">
@@ -42,18 +83,33 @@ const ProductReviews: React.FC<ProductReviewsProps> = ({ productId }) => {
             productId={productId} 
             onSuccess={() => {
               setShowForm(false);
+              // Refresh reviews after submission
+              const fetchReviews = async () => {
+                const { data } = await supabase
+                  .from('reviews')
+                  .select('*')
+                  .eq('product_id', productId)
+                  .order('created_at', { ascending: false });
+                
+                if (data) setReviews(data);
+              };
+              fetchReviews();
             }}
           />
         </div>
       )}
       
-      {productReviews.length === 0 ? (
+      {isLoading ? (
+        <div className="text-center py-4">
+          <p>Loading reviews...</p>
+        </div>
+      ) : reviews.length === 0 ? (
         <p className="text-muted-foreground text-center py-8">
           This product has no reviews yet. Be the first to leave a review!
         </p>
       ) : (
         <div className="space-y-6">
-          {productReviews.map(review => (
+          {reviews.map(review => (
             <div key={review.id} className="space-y-2">
               <div className="flex justify-between">
                 <div className="flex items-center gap-2">
@@ -61,9 +117,9 @@ const ProductReviews: React.FC<ProductReviewsProps> = ({ productId }) => {
                     <User className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <div>
-                    <p className="font-medium">{review.customerName}</p>
+                    <p className="font-medium">{review.customer_name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(review.createdAt).toLocaleDateString()}
+                      {new Date(review.created_at).toLocaleDateString()}
                     </p>
                   </div>
                 </div>

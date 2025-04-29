@@ -113,7 +113,7 @@ export const productsAPI = {
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .eq('vendorId', vendorId);
+        .eq('vendor_id', vendorId);
       
       if (error) {
         return { error: error.message };
@@ -155,7 +155,7 @@ export const ordersAPI = {
       const { data, error } = await supabase
         .from('orders')
         .select('*')
-        .eq('customerId', customerId);
+        .eq('customer_id', customerId);
       
       if (error) {
         return { error: error.message };
@@ -175,7 +175,7 @@ export const ordersAPI = {
       const { data, error } = await supabase
         .from('orders')
         .select('*')
-        .eq('vendorId', vendorId);
+        .eq('vendor_id', vendorId);
       
       if (error) {
         return { error: error.message };
@@ -241,7 +241,7 @@ export const reviewsAPI = {
       const { data, error } = await supabase
         .from('reviews')
         .select('*')
-        .eq('productId', productId);
+        .eq('product_id', productId);
       
       if (error) {
         return { error: error.message };
